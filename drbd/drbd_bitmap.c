@@ -39,7 +39,44 @@
  * function name      bm_... => internal to implementation, "private".
  */
 
+/*
+  * 限制：
+  * 我们希望支持 >= 1PB 字节的后端存储，而目前仍在使用
+  * 每 4KiB 存储的粒度为 1 位。
+  * 1 << 50 字节后端存储 (1 PiB)
+  * 需要 1 << (50 - 12) 位
+  * 38 --> 我们需要 u64 来索引和计数位
+  * 需要 1 << (38 - 3) 位图字节
+  * 35 --> 我们仍然需要 u64 来索引和计数字节
+  *（1 PiB 存储空间为 32 GiB 位图）
+  * 1 << (35 - 2) 需要 32 位长整型
+  * 33 --> 我们甚至需要 u64 来索引和计算 32 位长字。
+  * 1 << (35 - 3) 需要 64 位长整型
+  * 32 --> 我们可以使用 32 位无符号 int 来索引和计数
+  * 64 位长字，但我现在宁愿保留 unsigned long。
+  * 我们可能既不应该计算也不应该指向字节或长字
+  * 直接，但可以按位数，或按页索引和偏移量。
+  * 1 << (35 - 12)
+  * 22 --> 我们需要那么多 4KiB 页的位图。
+  * 1 << (22 + 3) --> 在 64 位架构上，
+  * 我们需要 32 MiB 来存储页面指针数组。
+  *
+  * 因为我很懒，而且因为生成的补丁太大，太难看了
+  * 并且仍然不完整，在 32 位上我们仍然“仅”支持 16 TiB（减去一些），
+  * (1 << 32) 位 * 4k 存储。
+  *
 
+  * 位图存储和IO：
+  * 位图在磁盘上以小端存储，并且在中保持小端
+  * 核心内存。 目前我们仍然在核心中保留完整的位图
+  * 因为我们“附加”到本地磁盘，1PiB 存储容量为 32 GiB
+  * 似乎有点过分了。
+  *
+  * 我们计划通过分页来减少核心位图页面的数量
+  * 并根据需要根据其在磁盘上的位置进行调整，但需要
+  * 确保我们不会造成太多的元数据IO，并且一定不会死锁
+  * 记忆紧张的情况。 这需要更多的工作。
+  */
 /*
  * LIMITATIONS:
  * We want to support >= peta byte of backend storage, while for now still using
@@ -124,6 +161,16 @@ bm_print_lock_info(struct drbd_device *device, unsigned int bitmap_index, enum b
 		 b->bm_task_comm, b->bm_task_pid);
 }
 
+/* drbd_bm_lock()在drbd-9.0之前引入，保证访问
+    位图通过其他方式（状态等）被锁定。 如果需要的锁是
+    未获取或已采取警告将被记录，并且关键部分在互斥体上序列化。
+
+    由于 drbd-9.0 位图上的操作可以并行发生（例如“接收
+    位图”）。目前采取的廉价解决方案是完全序列化位图
+    操作，但如果它们在不同的位图槽上操作，则不会发出警告。
+    真正的解决方案是使锁定更加细粒度（每个锁 一个位图槽）并允许这些操作并行发生。
+*/
+
 /* drbd_bm_lock() was introduced before drbd-9.0 to ensure that access to
    bitmap is locked out by other means (states, etc..). If a needed lock was
    not acquired or already taken a warning gets logged, and the critical
@@ -183,6 +230,7 @@ void drbd_bm_slot_lock(struct drbd_peer_device *peer_device, char *why, enum bm_
 	_drbd_bm_lock(peer_device->device, peer_device, why, flags);
 }
 
+// 解锁 bitmap锁
 void drbd_bm_unlock(struct drbd_device *device)
 {
 	struct drbd_bitmap *b = device->bitmap;
@@ -231,6 +279,12 @@ void drbd_bm_slot_unlock(struct drbd_peer_device *peer_device)
  * on activity log transactions */
 #define BM_PAGE_HINT_WRITEOUT	27
 
+/* store_page_idx 使用非原子分配。 仅在之后直接使用
+  * 分配页面。 所有其他 bm_set_page_* 和 bm_clear_page_* 需要
+  * 使用原子位操作，如 set_out_of_sync （因此位图
+  * 变化）可能会在不同的上下文中发生，并且 wait_on_bit/wake_up_bit
+  * 也要求所有内容都是原子的。 
+*/
 /* store_page_idx uses non-atomic assignment. It is only used directly after
  * allocating the page.  All other bm_set_page_* and bm_clear_page_* need to
  * use atomic bit manipulation, as set_out_of_sync (and therefore bitmap
