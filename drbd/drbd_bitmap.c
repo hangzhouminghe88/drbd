@@ -371,12 +371,15 @@ static int bm_test_page_lazy_writeout(struct page *page)
 }
 
 /*
+ * 实际上这里的大多数函数应该采用 struct drbd_bitmap*，而不是
+ * struct drbd_device*，但对于调试宏，我喜欢将设备放在身边
+ * 能够报告特定于设备的信息。
+*/
+/*
  * actually most functions herein should take a struct drbd_bitmap*, not a
  * struct drbd_device*, but for the debug macros I like to have the device around
  * to be able to report device specific.
  */
-
-
 static void bm_free_pages(struct page **pages, unsigned long number)
 {
 	unsigned long i;
