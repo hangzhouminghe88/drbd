@@ -10,6 +10,25 @@
  */
 
 /*
+ * 你给出的这个文件`drbd_dax.c`是DRBD项目的一部分，它与DRBD在处理元数据时对DAX（Direct Access）功能的使用有关。
+ * DAX是一个在持久内存（persistent memory）环境中，允许应用程序直接访问存储设备，避免了页缓存，从而实现了数据访问的低延迟和高吞吐量的特性。
+ * 在这个文件中，主要定义了一些函数，它们允许DRBD直接访问存储在持久内存中的元数据，这样可以提高元数据的访问性能。这里的元数据可能包括DRBD的位图和活动日志等。
+
+主要的函数包括：
+
+- `map_superblock_for_dax`：这个函数将元数据的超级块映射到DAX设备。
+- `drbd_dax_open`：这个函数打开DAX设备，并映射元数据的超级块。
+- `drbd_dax_close`：这个函数关闭DAX设备。
+- `drbd_dax_map`：这个函数映射元数据到DAX设备。
+- `drbd_dax_al_update`和`drbd_dax_al_begin_io_commit`：这两个函数用于更新存储在持久内存中的活动日志。
+- `drbd_dax_al_initialize`：这个函数初始化存储在持久内存中的活动日志。
+- `drbd_dax_bitmap`：这个函数返回指向DAX设备上的DRBD位图的指针。
+
+所有这些函数都充分利用了DAX的优势，即能够直接访问持久内存，而无需通过页缓存，从而提高了访问持久内存的性能。
+这在DRBD的上下文中尤其重要，因为DRBD需要频繁地读写元数据，如果这些操作可以在持久内存上以低延迟和高吞吐量的方式执行，那么DRBD的总体性能将得到提高。
+*/ 
+
+/*
   In case DRBD's meta-data resides in persistent memory do a few things
    different.
 
