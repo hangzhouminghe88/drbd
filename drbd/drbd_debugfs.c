@@ -1,3 +1,17 @@
+/* 这是DRBD项目中`drbd_debugfs.h`头文件的代码，它与DRBD在Linux kernel的debugfs文件系统中创建和清理debugfs项有关。
+   debugfs是一个特殊的文件系统，它提供了一个用于将内核空间的信息暴露给用户空间的方法，主要用于调试目的。
+   这个文件的功能取决于是否启用了`CONFIG_DEBUG_FS`选项。如果启用了这个选项，那么各种`drbd_debugfs_`开头的函数将是可用的，
+   这些函数允许在debugfs中添加和清理与DRBD相关的资源、设备、连接和对等设备等。
+   如果没有启用这个选项，那么这些函数将被定义为空操作（即什么也不做）。
+具体的函数包括：
+- `drbd_debugfs_init`和`drbd_debugfs_cleanup`：初始化和清理DRBD的debugfs项。
+- `drbd_debugfs_resource_add`，`drbd_debugfs_resource_cleanup`和`drbd_debugfs_resource_rename`：在debugfs中添加、清理和重命名与DRBD资源相关的项。
+- `drbd_debugfs_connection_add`和`drbd_debugfs_connection_cleanup`：在debugfs中添加和清理与DRBD连接相关的项。
+- `drbd_debugfs_device_add`和`drbd_debugfs_device_cleanup`：在debugfs中添加和清理与DRBD设备相关的项。
+- `drbd_debugfs_peer_device_add`和`drbd_debugfs_peer_device_cleanup`：在debugfs中添加和清理与DRBD对等设备相关的项。
+注意，这些函数的具体实现应该在其他地方定义，可能在一个名为`drbd_debugfs.c`的文件中，但在你给出的这个头文件中并没有给出具体的实现。
+*/	
+
 // SPDX-License-Identifier: GPL-2.0-only
 #define pr_fmt(fmt)	KBUILD_MODNAME " debugfs: " fmt
 #include <linux/kernel.h>
