@@ -11,6 +11,18 @@
 
  */
 
+/* 
+  可以理解为 DRBD的归档日志
+  简单介绍了工作原理，activelog中记录的是最近写入磁盘中的IO，每一条activelog对应着一个4M的数据块。
+  62条这样的日志组成一个512bit的sector，整个activelog由若干个这样的sector组成。
+  activelog的条数是可以指定的，在drbd.conf文件中可以配置，配置值为：activelog能记录的数据块的大小，注意不是日志的条数。
+  该值的含义也就是：当出现故障重启时，需要在主备两端同步的数据块的总大小。
+  当写入新的4M数据块时，DRBD会刷新一次activelog，activelog是循环写入的，在元数据里面会记录当前的所有日志中，哪一条是最老的。
+  因此当反转覆盖发生时，需要更新元数据。事实上，当运行的时间足够长时，反转覆盖在每一次添加一个4M数据块时都会发生。
+  但是当指定的size值与512bit（代表240多M，具体值要根据代码计算。）
+  不是整数倍关系时，在最后一个sector反转时，需要写两个sector，因此从这个角度讲，activelog的size最好是整数个sector，这样可以减少一部分不必要的写两个sector。
+*/
+
 #include <linux/slab.h>
 #include <linux/crc32c.h>
 #include <linux/drbd.h>
