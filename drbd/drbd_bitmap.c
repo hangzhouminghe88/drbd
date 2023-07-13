@@ -533,6 +533,15 @@ static void bm_unmap(struct drbd_bitmap *bitmap, void *addr)
 		kunmap_atomic(addr);
 }
 
+/*
+这段代码是DRBD中用于进行位图操作的内联函数。它接收一些参数，包括DRBD设备、位图索引、起始和结束位置、操作类型以及一个缓冲区指针。
+
+该函数的目的是在位图上执行指定的操作，并返回相关的结果。它使用循环遍历位图的页，根据操作类型执行相应的操作。具体的操作包括设置位、清除位、计数位、合并位、提取位以及查找位和零位。
+
+在遍历位图页的过程中，函数使用一些位操作函数和辅助函数来处理位图的位操作。它根据操作类型执行相应的操作，并更新计数和状态等信息。
+
+该函数的最终返回结果取决于操作类型。例如，对于计数操作，返回计数的总和；对于查找位和零位的操作，返回找到的位索引；对于设置和清除位的操作，返回操作的数量。
+*/
 static __always_inline unsigned long
 ____bm_op(struct drbd_device *device, unsigned int bitmap_index, unsigned long start, unsigned long end,
 	 enum bitmap_operations op, __le32 *buffer)
@@ -763,6 +772,20 @@ ____bm_op(struct drbd_device *device, unsigned int bitmap_index, unsigned long s
 	return total;
 }
 
+/* 
+ *这段代码是DRBD中用于进行位图操作的内联函数__bm_op。它是对上述提到的____bm_op函数的包装，并添加了一些额外的逻辑。
+
+ *首先，函数检查设备和位图的有效性。如果设备或位图为空，函数将返回适当的值。
+
+ * 然后，函数检查当前进程与位图所属任务的关联。如果不是同一任务，函数将根据操作类型检查位图锁的状态，并打印相关的锁信息。
+
+ * 最后，函数调用____bm_op函数执行实际的位图操作，并返回结果。
+
+ *这个包装函数主要用于添加额外的安全性和调试功能，以确保位图操作的正确性和一致性。
+
+ * 需要注意的是，这段代码只是DRBD中位图操作的一部分，并且可能与完整的上下文相关代码有依赖关系。
+ * 要全面了解DRBD位图的实现和使用方式，建议查阅DRBD的官方文档或详细研究DRBD的源代码。
+*/
 /* Returns the number of bits changed.  */
 static __always_inline unsigned long
 __bm_op(struct drbd_device *device, unsigned int bitmap_index, unsigned long start, unsigned long end,
@@ -802,6 +825,22 @@ __bm_op(struct drbd_device *device, unsigned int bitmap_index, unsigned long sta
 	return ____bm_op(device, bitmap_index, start, end, op, buffer);
 }
 
+/* 
+这段代码是DRBD中用于进行位图操作的内联函数bm_op。它调用了__bm_op函数来执行实际的位图操作，并使用自旋锁保护对位图的访问。
+
+首先，函数获取位图的指针，并声明保存中断标志和计数的变量。
+
+然后，函数通过调用spin_lock_irqsave函数获取位图的自旋锁，以防止并发访问冲突。
+
+接下来，函数调用__bm_op函数执行实际的位图操作，并将结果存储在count变量中。
+
+最后，函数通过调用spin_unlock_irqrestore函数释放位图的自旋锁，并返回位图操作的计数结果。
+
+通过使用自旋锁，该函数确保了对位图的原子性访问，避免了并发访问导致的数据不一致性。
+
+需要注意的是，这段代码只是DRBD中位图操作的一部分，并且可能与完整的上下文相关代码有依赖关系。
+要全面了解DRBD位图的实现和使用方式，建议查阅DRBD的官方文档或详细研究DRBD的源代码。
+*/
 static __always_inline unsigned long
 bm_op(struct drbd_device *device, unsigned int bitmap_index, unsigned long start, unsigned long end,
       enum bitmap_operations op, __le32 *buffer)
@@ -849,6 +888,31 @@ bm_op(struct drbd_device *device, unsigned int bitmap_index, unsigned long start
 
 /* you better not modify the bitmap while this is running,
  * or its results will be stale */
+
+/*这段代码是DRBD（分布式复制块设备）代码库中的一个函数，名为bm_count_bits。
+其目的是计算每个位图索引中已设置的位数，并将结果存储在位图的bm_set数组中。
+
+让我们来分解这段代码：
+
+该函数接收一个struct drbd_device指针作为输入，表示一个DRBD设备。
+
+它从设备结构中获取位图指针。
+
+然后，函数迭代每个位图索引（最多到bm_max_peers）。每个位图索引对应一个特定的副本或对等体。
+
+在循环内部，函数初始化变量bit和bits_set，用于跟踪当前位的位置和已设置位的数量。
+
+函数进入另一个循环，迭代当前位图索引中的位。它从bit位置开始，一直进行到页面上的最后一位（使用last_bit_on_page函数获取）。
+
+在内部循环中，函数调用___bm_op函数，在当前位范围上执行计数操作（BM_OP_COUNT）。结果累加到bits_set变量中。
+
+在处理完当前位图索引中的所有位之后，函数使用相应的索引将bm_set数组更新为已设置位的最终计数。
+
+在内部循环中调用cond_resched函数，以允许主动重新调度，为其他任务提供运行机会。
+
+代码开头的注释提醒不要在此函数运行时修改位图，否则可能导致陈旧或不正确的结果。
+*/
+//该函数的目的是计算每个位图索引中已设置的位数，提供DRBD设备中每个副本或对等体的位设置数量摘要。
 static void bm_count_bits(struct drbd_device *device)
 {
 	struct drbd_bitmap *bitmap = device->bitmap;
@@ -869,6 +933,16 @@ static void bm_count_bits(struct drbd_device *device)
 }
 
 /* For the layout, see comment above drbd_md_set_sector_offsets(). */
+/* 这段代码是DRBD（分布式复制块设备）代码库中的一个函数，名为drbd_md_on_disk_bits。它用于计算在磁盘上存储的位图的大小（以位为单位）。
+   让我们来分解这段代码：
+   该函数接收一个struct drbd_device指针作为输入，表示一个DRBD设备。
+   函数通过设备的ldev字段获取底层设备（backing device）的信息。
+   根据底层设备的元数据偏移量（al_offset）和位图偏移量（bm_offset），计算位图所占据的扇区数（bitmap_sectors）。
+   下一步，函数根据bitmap_sectors和位图最大副本数（bm_max_peers）计算位图所占据的64位字（word）数（word64_on_disk）。
+   这里的计算涉及将扇区转换为字节，并通过右移和除法操作完成。
+   最后，函数将位图的字节数转换为位数，并返回结果（word64_on_disk << 6）。
+   该函数主要用于计算位图在磁盘上的存储大小，以便在DRBD设备初始化和配置过程中使用。
+*/	
 static u64 drbd_md_on_disk_bits(struct drbd_device *device)
 {
 	struct drbd_backing_dev *ldev = device->ldev;
