@@ -1,4 +1,19 @@
 // SPDX-License-Identifier: GPL-2.0-only
+/*
+这段代码来自DRBD项目中的`drbd_interval.c`文件，定义了处理DRBD（Distributed Replicated Block Device）项目中所使用的区间树（interval tree）的一系列函数。
+一个区间树是一种特殊的数据结构，可以有效地查询一个给定区间是否与树中的任何区间重叠。
+下面是函数的概述：
+- `interval_end`: 返回指定节点的结束位置。
+- `drbd_insert_interval`: 在区间树中插入一个新的区间。
+- `drbd_contains_interval`: 检查区间树是否包含给定的区间。
+- `drbd_remove_interval`: 从区间树中移除一个区间。
+- `drbd_find_overlap`: 查找一个与给定区间重叠的区间。
+- `drbd_next_overlap`: 获取下一个与给定区间重叠的区间。
+在上述函数中，区间被表示为`struct drbd_interval`类型，这个结构可能包含了区间的开始（sector）和大小（size）等信息。
+这些函数在插入，查询，删除和查找区间树中的重叠区间等操作中被使用。
+注意：上述解释是基于代码的读取，没有上下文的其他信息，如特定的项目文档，可能会对理解有所帮助。
+此外，部分解释可能基于对相似代码模式的理解，而这些模式可能具有一般性，但可能在特定情况下有所不同。
+*/
 #include <asm/bug.h>
 #include <linux/rbtree_augmented.h>
 #include "drbd_interval.h"
